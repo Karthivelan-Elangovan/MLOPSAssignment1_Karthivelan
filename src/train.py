@@ -182,21 +182,98 @@ if __name__ == "__main__":
 
     print("\nTraining Logistic Regression...")
 
-    logistic_model = train_logistic_regression(X_train, y_train)
+    with mlflow.start_run(run_name="Logistic Regression"):
+        logistic_model = train_logistic_regression(X_train, y_train)
+
+        logistic_result = evaluate_model(
+            "Logistic Regression",
+            logistic_model,
+            X_test,
+            y_test
+        )
+
+        mlflow.log_param("model_type", "Logistic Regression")
+        mlflow.log_param("max_iter", 2000)
+        mlflow.log_param("random_state", 42)
+
+        mlflow.log_metrics({
+            "accuracy": logistic_result["Accuracy"],
+            "precision": logistic_result["Precision"],
+            "recall": logistic_result["Recall"],
+            "f1_score": logistic_result["F1 Score"],
+            "roc_auc": logistic_result["ROC-AUC"]
+        })
+
+        mlflow.sklearn.log_model(
+            logistic_model,
+            name="logistic_regression_model"
+        )
 
     print("Logistic Regression training completed.")
 
     #decision tree training    
     print("\nTraining Decision Tree...")
 
-    decision_tree = train_decision_tree(X_train, y_train)
+    with mlflow.start_run(run_name="Decision Tree"):
+        decision_tree = train_decision_tree(X_train, y_train)
+
+        decision_tree_result = evaluate_model(
+            "Decision Tree",
+            decision_tree,
+            X_test,
+            y_test
+        )
+
+        mlflow.log_param("model_type", "Decision Tree")
+        mlflow.log_param("max_depth", 4)
+        mlflow.log_param("random_state", 42)
+
+        mlflow.log_metrics({
+            "accuracy": decision_tree_result["Accuracy"],
+            "precision": decision_tree_result["Precision"],
+            "recall": decision_tree_result["Recall"],
+            "f1_score": decision_tree_result["F1 Score"],
+            "roc_auc": decision_tree_result["ROC-AUC"]
+        })
+
+        mlflow.sklearn.log_model(
+            decision_tree,
+            name="decision_tree_model",
+            skops_trusted_types=["sklearn.tree._tree.Tree"]
+        )
 
     print("Decision Tree training completed.")
 
 
     print("\nTraining Random Forest...")
-    random_forest = train_random_forest(X_train, y_train)
 
+    with mlflow.start_run(run_name="Random Forest"):
+        random_forest = train_random_forest(X_train, y_train)
+
+        random_forest_result = evaluate_model(
+            "Random Forest",
+            random_forest,
+            X_test,
+            y_test
+        )
+
+        mlflow.log_param("model_type", "Random Forest")
+        mlflow.log_param("n_estimators", 200)
+        mlflow.log_param("random_state", 42)
+
+        mlflow.log_metrics({
+            "accuracy": random_forest_result["Accuracy"],
+            "precision": random_forest_result["Precision"],
+            "recall": random_forest_result["Recall"],
+            "f1_score": random_forest_result["F1 Score"],
+            "roc_auc": random_forest_result["ROC-AUC"]
+        })
+
+        mlflow.sklearn.log_model(
+            random_forest,
+            name="random_forest_model",
+            skops_trusted_types=["sklearn.tree._tree.Tree"]
+        )
     print("Random Forest training completed.")
 
 
@@ -235,7 +312,16 @@ if __name__ == "__main__":
     print("================")
     print(results_df.round(4).to_string(index=False))
 
-    # Random Forest Confusion Matrix
+    # Save model comparison results
+    comparison_path = PROJECT_ROOT / "model_comparison.csv"
+    results_df.to_csv(comparison_path, index=False)
+
+    # Log model comparison as a separate MLflow run
+    with mlflow.start_run(run_name="Model Comparison"):
+        mlflow.log_artifact(str(comparison_path))
+
+    print(f"Model comparison saved to: {comparison_path}")
+        # Random Forest Confusion Matrix
     y_pred_rf = random_forest.predict(X_test)
 
     cm = confusion_matrix(y_test, y_pred_rf)
