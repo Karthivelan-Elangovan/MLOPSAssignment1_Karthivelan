@@ -1,18 +1,45 @@
+import logging
+import time
 from pathlib import Path
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
 
 # Project paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "models" / "logistic_regression_model.joblib"
 
-
 # Load trained model
 model = joblib.load(MODEL_PATH)
 
+# Logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("heart-disease-api")
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    "api_requests_total",
+    "Total number of API requests",
+    ["method", "endpoint", "http_status"],
+)
+
+REQUEST_LATENCY = Histogram(
+    "api_request_duration_seconds",
+    "API request duration in seconds",
+    ["method", "endpoint"],
+)
+
+PREDICTION_COUNT = Counter(
+    "model_predictions_total",
+    "Total number of model predictions",
+    ["prediction"],
+)
 
 # Create FastAPI application
 app = FastAPI(
@@ -48,6 +75,43 @@ class PatientData(BaseModel):
     thal_7_0: float
 
 
+@app.middleware("http")
+async def log_and_measure_requests(request: Request, call_next):
+    """Log API requests and collect Prometheus request metrics."""
+    start_time = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception:
+        status_code = 500
+        raise
+    finally:
+        duration = time.perf_counter() - start_time
+
+        if request.url.path != "/metrics":
+            REQUEST_COUNT.labels(
+                method=request.method,
+                endpoint=request.url.path,
+                http_status=str(status_code),
+            ).inc()
+
+            REQUEST_LATENCY.labels(
+                method=request.method,
+                endpoint=request.url.path,
+            ).observe(duration)
+
+            logger.info(
+                "%s %s -> %s %.4fs",
+                request.method,
+                request.url.path,
+                status_code,
+                duration,
+            )
+
+    return response
+
+
 @app.get("/")
 def root():
     return {
@@ -59,13 +123,21 @@ def root():
 def health():
     return {
         "status": "healthy",
-        "model": "logistic_regression"
+        "model": "logistic_regression",
     }
+
+
+@app.get("/metrics")
+def metrics():
+    """Expose Prometheus metrics."""
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.post("/predict")
 def predict(patient: PatientData):
-
     patient_dict = patient.model_dump()
 
     # Convert API field names back to model column names
@@ -80,16 +152,13 @@ def predict(patient: PatientData):
         "oldpeak": patient_dict["oldpeak"],
         "slope": patient_dict["slope"],
         "ca": patient_dict["ca"],
-
         "cp_1.0": patient_dict["cp_1_0"],
         "cp_2.0": patient_dict["cp_2_0"],
         "cp_3.0": patient_dict["cp_3_0"],
         "cp_4.0": patient_dict["cp_4_0"],
-
         "restecg_0.0": patient_dict["restecg_0_0"],
         "restecg_1.0": patient_dict["restecg_1_0"],
         "restecg_2.0": patient_dict["restecg_2_0"],
-
         "thal_3.0": patient_dict["thal_3_0"],
         "thal_6.0": patient_dict["thal_6_0"],
         "thal_7.0": patient_dict["thal_7_0"],
@@ -100,6 +169,8 @@ def predict(patient: PatientData):
     prediction = int(model.predict(input_df)[0])
     probability = float(model.predict_proba(input_df)[0][1])
 
+    PREDICTION_COUNT.labels(prediction=str(prediction)).inc()
+
     label = (
         "Heart disease detected"
         if prediction == 1
@@ -109,5 +180,5 @@ def predict(patient: PatientData):
     return {
         "prediction": prediction,
         "prediction_label": label,
-        "probability": round(probability, 4)
+        "probability": round(probability, 4),
     }
