@@ -1,8 +1,7 @@
+from io import BytesIO
 from pathlib import Path
 from urllib.request import urlopen
 from zipfile import ZipFile
-from io import BytesIO
-
 
 # Project directories
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

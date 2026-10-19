@@ -3,7 +3,6 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
-
 # Project paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "models" / "logistic_regression_model.joblib"

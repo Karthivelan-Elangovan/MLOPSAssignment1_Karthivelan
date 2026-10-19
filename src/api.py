@@ -5,7 +5,6 @@ import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-
 # Project paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "models" / "logistic_regression_model.joblib"

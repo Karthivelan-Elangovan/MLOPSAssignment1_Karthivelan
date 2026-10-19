@@ -1,28 +1,23 @@
 from pathlib import Path
 
-
+import joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
-import joblib
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
-    confusion_matrix,
-    roc_auc_score
+    roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
-
-
 
 # Project paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
